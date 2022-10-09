@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.IO;
 
 namespace InvestmentTester
 {
@@ -17,9 +18,10 @@ namespace InvestmentTester
         {
             InitializeComponent();
         }
-        float buyOrSellFee = 0.006f;
-        float coinPrice = 1234.56789f;
 
+        float buyOrSellFee = 0.006f;
+        //float coinPrice = 1234.56789f;
+        float coinPrice = 0.0f;
         float startAmount;
         float checking;
         float checking_;
@@ -30,6 +32,7 @@ namespace InvestmentTester
         float maxPercChangePerDay;
         float maxPercBuyOrSell;
         float sumPercChange;
+        float[] btcPrice;
 
         int days;
         int dayDuration;
@@ -41,6 +44,11 @@ namespace InvestmentTester
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            string[] floats = File.ReadAllLines("price.txt");
+            btcPrice = new float[floats.Length];
+            for (int i = 0; i < btcPrice.Length; i++) btcPrice[i] = float.Parse(floats[i]);
+
+
             days = 0;
             startAmount = Int(textBox1.Text);
             checking = startAmount;
@@ -59,6 +67,7 @@ namespace InvestmentTester
             purchaseArray = new float[safetyHalving];
             timer1.Interval = dayDuration;
         }
+
         int Int(string a)
         {
             try
@@ -84,13 +93,21 @@ namespace InvestmentTester
 
         private void textBox2_TextChanged(object sender, EventArgs e) //Day Duration
         {
-            dayDuration = Int(textBox2.Text) * 1000;
-            timer1.Interval = dayDuration;
+            dayDuration = (int)(Float(textBox2.Text) * 1000.0f);
+            if(dayDuration <= 0)
+            {
+                timer1.Interval = 1000;
+            }
+            else
+            {
+                timer1.Interval = dayDuration;
+            }
         }
 
         private void textBox3_TextChanged(object sender, EventArgs e) //Safety Halves
         {
             safetyHalving = Int(textBox3.Text);
+            purchaseArray = new float[safetyHalving];
             label6.Text = "starts: $" + (Math.Pow(0.5, safetyHalving) * startAmount);
         }
 
@@ -101,24 +118,29 @@ namespace InvestmentTester
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            changeToday = (maxPercChangePerDay * (float)ran.NextDouble());
-            bool increase = Convert.ToBoolean(ran.Next(0, 2));
+            //changeToday = (maxPercChangePerDay * (float)ran.NextDouble());
+            changeToday = ((btcPrice[days + 1] / btcPrice[days]) - 1) * 100.0f;
+
+            bool increase = btcPrice[days + 1] > btcPrice[days];
+
             if (increase) //Increase or Decrease
             {
+                //float mul = (1 + (changeToday / 100));
                 float mul = (1 + (changeToday / 100));
-                coinPrice *= mul;
+                coinPrice = btcPrice[days];
+                //coinPrice *= mul;
                 UpdatePurchaseArray(mul);
                 sumPercChange += changeToday;
             }
             else
             {
-                float mul = (1 - (changeToday / 100));
-                coinPrice *= mul;
+                //float mul = (1 - (changeToday / 100));
+                float mul = (1 + (changeToday / 100));
+                coinPrice = btcPrice[days];
+                //coinPrice *= mul;
                 UpdatePurchaseArray(mul);
-                sumPercChange -= changeToday;
+                sumPercChange += changeToday;
             }
-
-
 
             if (sumPercChange > maxPercBuyOrSell) //sell
             {
@@ -131,13 +153,13 @@ namespace InvestmentTester
             }
             else if (sumPercChange < -maxPercBuyOrSell) //Keep Investing
             {
-                currStage++;
-                if (currStage >= safetyHalving)
+                if (currStage + 1 > safetyHalving)
                 {
                     richTextBox1.Text += "\nUh oh... going to have to do some waiting";
                 }
                 else
                 {
+                    currStage++;
                     Buy((float)(Math.Pow(0.5, safetyHalving - (currStage - 1)) * checking));
                 }
             }
@@ -145,6 +167,7 @@ namespace InvestmentTester
             days++;
             UpdateValues();
         }
+
         void Buy(float amount)
         {
             amount *= 1.0f - buyOrSellFee;
@@ -202,6 +225,18 @@ namespace InvestmentTester
             label17.Text = "Total Yeild: $" + $"{totalYeild:0.00}";
             label18.Text = "Sales: " + numSales;
             chart2.Series["Coin Price"].Points.AddXY(days, coinPrice);
+        }
+
+        private void textBox1_TextChanged(object sender, EventArgs e) //Start Amount
+        {
+            startAmount = Int(textBox1.Text);
+            checking = startAmount;
+            checking_ = checking;
+        }
+
+        private void textBox5_TextChanged(object sender, EventArgs e) //Max % Buy Or Sell
+        {
+            maxPercBuyOrSell = Float(textBox5.Text);
         }
     }
 }
