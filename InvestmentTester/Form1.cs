@@ -19,37 +19,42 @@ namespace InvestmentTester
             InitializeComponent();
         }
 
-        float buyOrSellFee = 0.006f;
-        //float coinPrice = 1234.56789f;
-        float coinPrice = 0.0f;
-        float startAmount;
-        float checking;
-        float checking_;
-        float currBought;
-        float totalYeild;
-        float currYeild;
-        float changeToday;
-        float maxPercChangePerDay;
-        float maxPercBuyOrSell;
-        float sumPercChange;
-        float[] btcPrice;
+        double coinPrice = 1234.56789;
+        //double coinPrice = 0.0f;
+        double buyOrSellFee = 0.006;
+        double startAmount;
+        double checking;
+        double checking_;
+        double currBought;
+        double totalYeild;
+        double currYeild;
+        double changeToday;
+        double maxPercChangePerDay;
+        double maxPercBuyOrSell;
+        double sumPercChange;
+        double[] btcPrice;
 
         int days;
+        int highestStage;
         int dayDuration;
         int safetyHalving;
         int currStage;
         int numSales;
+        int numDangers;
 
-        float[] purchaseArray;
+        double[] prepurchaseArray;
+        double[] purchaseArray;
+        double[] coinPriceArray;
 
         private void Form1_Load(object sender, EventArgs e)
         {
             string[] floats = File.ReadAllLines("price.txt");
-            btcPrice = new float[floats.Length];
+            btcPrice = new double[floats.Length];
             for (int i = 0; i < btcPrice.Length; i++) btcPrice[i] = float.Parse(floats[i]);
 
 
             days = 0;
+            numDangers = 0;
             startAmount = Int(textBox1.Text);
             checking = startAmount;
             checking_ = checking;
@@ -64,7 +69,9 @@ namespace InvestmentTester
             maxPercBuyOrSell = Float(textBox5.Text);
             sumPercChange = 0.0f;
             currStage = 1;
-            purchaseArray = new float[safetyHalving];
+            prepurchaseArray = new double[safetyHalving];
+            purchaseArray = new double[safetyHalving];
+            coinPriceArray = new double[safetyHalving];
             timer1.Interval = dayDuration;
         }
 
@@ -107,7 +114,9 @@ namespace InvestmentTester
         private void textBox3_TextChanged(object sender, EventArgs e) //Safety Halves
         {
             safetyHalving = Int(textBox3.Text);
-            purchaseArray = new float[safetyHalving];
+            purchaseArray = new double[safetyHalving];
+            coinPriceArray = new double[safetyHalving];
+            prepurchaseArray = new double[safetyHalving];
             label6.Text = "starts: $" + (Math.Pow(0.5, safetyHalving) * startAmount);
         }
 
@@ -118,29 +127,44 @@ namespace InvestmentTester
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            //changeToday = (maxPercChangePerDay * (float)ran.NextDouble());
-            changeToday = ((btcPrice[days + 1] / btcPrice[days]) - 1) * 100.0f;
-
-            bool increase = btcPrice[days + 1] > btcPrice[days];
-
-            if (increase) //Increase or Decrease
+            if (checkBox1.Checked) //Random Data
             {
-                //float mul = (1 + (changeToday / 100));
-                float mul = (1 + (changeToday / 100));
-                coinPrice = btcPrice[days];
-                //coinPrice *= mul;
-                UpdatePurchaseArray(mul);
-                sumPercChange += changeToday;
+                changeToday = (maxPercChangePerDay * (float)ran.NextDouble());
+                bool increase = Convert.ToBoolean(ran.Next(0, 2));
+                if (increase) //Increase or Decrease
+                {
+                    double mul = (1 + (changeToday / 100));
+                    coinPrice *= mul;
+                    UpdatePurchaseArray();
+                    sumPercChange += changeToday;
+                }
+                else
+                {
+                    double mul = (1 - (changeToday / 100));
+                    coinPrice *= mul;
+                    UpdatePurchaseArray();
+                    sumPercChange -= changeToday;
+                    changeToday *= -1;
+                }
             }
-            else
+            else //Use BTC Price
             {
-                //float mul = (1 - (changeToday / 100));
-                float mul = (1 + (changeToday / 100));
-                coinPrice = btcPrice[days];
-                //coinPrice *= mul;
-                UpdatePurchaseArray(mul);
-                sumPercChange += changeToday;
+                changeToday = ((btcPrice[days + 1] / btcPrice[days]) - 1) * 100.0f;
+                bool increase = btcPrice[days + 1] > btcPrice[days];
+                if (increase) //Increase or Decrease
+                {
+                    coinPrice = btcPrice[days];
+                    UpdatePurchaseArray();
+                    sumPercChange += changeToday;
+                }
+                else
+                {
+                    coinPrice = btcPrice[days];
+                    UpdatePurchaseArray();
+                    sumPercChange += changeToday;
+                }
             }
+            
 
             if (sumPercChange > maxPercBuyOrSell) //sell
             {
@@ -148,19 +172,31 @@ namespace InvestmentTester
 
                 currStage = 1;
                 Buy((float)(Math.Pow(0.5, safetyHalving) * checking)); //Just automatically buy again, don't wait
-                sumPercChange = 0.0f;
+                sumPercChange -= maxPercBuyOrSell;
+            }
+            else if (currStage >= safetyHalving)
+            {
+                if (sumPercChange < (-maxPercBuyOrSell / 10.0))
+                {
+                    Sell();
 
+                    currStage = 1;
+                    Buy((float)(Math.Pow(0.5, safetyHalving) * checking)); //Just automatically buy again, don't wait
+                    sumPercChange += maxPercBuyOrSell;
+                }
             }
             else if (sumPercChange < -maxPercBuyOrSell) //Keep Investing
             {
-                if (currStage + 1 > safetyHalving)
+                if (currStage >= safetyHalving)
                 {
-                    richTextBox1.Text += "\nUh oh... going to have to do some waiting";
+                    label12.Text = "Status: Unstable";
                 }
                 else
                 {
+                    label12.Text = "Status: Stable";
                     currStage++;
-                    Buy((float)(Math.Pow(0.5, safetyHalving - (currStage - 1)) * checking));
+                    Buy(Math.Pow(0.5, safetyHalving - (currStage - 1)) * checking);
+                    sumPercChange += maxPercBuyOrSell;
                 }
             }
             totalYeild = checking_ - startAmount;
@@ -168,16 +204,16 @@ namespace InvestmentTester
             UpdateValues();
         }
 
-        void Buy(float amount)
+        void Buy(double amount)
         {
             amount *= 1.0f - buyOrSellFee;
-            richTextBox1.Text += "\n -" + maxPercBuyOrSell + "% hit! Buying " + amount;
+            //richTextBox1.Text += "\n -" + maxPercBuyOrSell + "% hit! Buying " + amount;
             checking -= amount;
             currBought = checking_ - checking;
 
-            purchaseArray[currStage - 1] = amount;
-
-            sumPercChange = 0.0f;
+            prepurchaseArray[currStage - 1] = amount;
+            coinPriceArray[currStage - 1] = coinPrice;
+            if (currStage > highestStage) highestStage = currStage;
         }
         void Sell()
         {
@@ -186,24 +222,30 @@ namespace InvestmentTester
             currYeild = checking - checking_;
 
             checking_ = checking;
-            richTextBox1.Text += "\nBuy no More!";
+            //richTextBox1.Text += "\nBuy no More!";
             currBought = 0;
 
-            richTextBox2.Text += "\n+ $" + currYeild + " made";
+            label14.Text = "Recent Yeild: +" + $"{currYeild:0.00}";
             chart1.Series["Yeild"].Points.AddXY(numSales, currYeild);
+            if (safetyHalving >> 1 <= currStage)
+            {
+                chart3.Series["Danger Zone"].Points.AddXY(numDangers++, currStage);
+                chart4.Series["Large Income"].Points.AddXY(numDangers, currYeild);
+            }
+            
             numSales++;
         }
-        float PurchaseArraySum()
+        double PurchaseArraySum()
         {
-            float ret = 0.0f;
+            double ret = 0.0f;
             for (int i = 0; i < currStage; i++) ret += purchaseArray[i];
             return ret;
         }
-        void UpdatePurchaseArray(float mul)
+        void UpdatePurchaseArray()
         {
             for (int i = 0; i < currStage; i++)
             {
-                purchaseArray[i] *= mul;
+                purchaseArray[i] = prepurchaseArray[i] * (coinPrice / coinPriceArray[i]);
             }
 
             string a = "";
@@ -222,8 +264,9 @@ namespace InvestmentTester
             label13.Text = "Sum Change: " + sumPercChange + "%";
             label3.Text = "Coin Price: " + coinPrice;
             label2.Text = "Day: " + days;
-            label17.Text = "Total Yeild: $" + $"{totalYeild:0.00}";
+            label17.Text = "Total Yeild: $"+totalYeild;
             label18.Text = "Sales: " + numSales;
+            label19.Text = "Highest Stage: " + highestStage;
             chart2.Series["Coin Price"].Points.AddXY(days, coinPrice);
         }
 
@@ -237,6 +280,18 @@ namespace InvestmentTester
         private void textBox5_TextChanged(object sender, EventArgs e) //Max % Buy Or Sell
         {
             maxPercBuyOrSell = Float(textBox5.Text);
+        }
+
+        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        {
+            if (checkBox1.Checked)
+            {
+                coinPrice = 1234.56789f;
+            }
+            else
+            {
+                coinPrice = 0.0f;
+            }
         }
     }
 }
